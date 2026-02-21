@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, ResponsiveContainer, YAxis, ReferenceLine } from "recharts";
+import * as api from "./src/api";
 
 const C = {
   bg: "#06070a", surface: "#0c0d12", surfaceAlt: "#10121a",
@@ -156,29 +157,233 @@ export default function AxiomV7() {
   const [drawer, setDrawer] = useState(null);
   const [showClaims, setShowClaims] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [sessionData, setSessionData] = useState(null);
+  const [backendConnected, setBackendConnected] = useState(false);
   const ref = useRef(null);
+  const wsRef = useRef(null);
 
-  const S = sid ? SCENARIOS[sid] : null;
+  const S = sid ? (sessionData || SCENARIOS[sid]) : null;
   const last = prices.length > 0 ? prices[prices.length - 1].p : 0.5;
   const pc = screen === "VERDICT" ? (S?.claims[0]?.bad ? C.red : C.green) : last > 0.5 ? C.green : last < 0.3 ? C.red : C.amber;
 
-  const cleanup = useCallback(() => { if (ref.current) clearInterval(ref.current); }, []);
+  const cleanup = useCallback(() => { 
+    if (ref.current) clearInterval(ref.current);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
   useEffect(() => () => cleanup(), [cleanup]);
-  const reset = useCallback(() => { cleanup(); setPrices([]); setPills([]); setDrawer(null); setShowClaims(false); setShowAdv(false); }, [cleanup]);
+  const reset = useCallback(() => { 
+    cleanup(); 
+    setPrices([]); 
+    setPills([]); 
+    setDrawer(null); 
+    setShowClaims(false); 
+    setShowAdv(false);
+    setSessionData(null);
+    setError(null);
+  }, [cleanup]);
 
-  const select = (id) => { reset(); setSid(id); setScreen("INTRO"); };
+  // Check backend connection on mount
+  useEffect(() => {
+    api.checkHealth().then(health => {
+      setBackendConnected(health.status === 'healthy' || health.status === 'ok');
+    }).catch(() => setBackendConnected(false));
+  }, []);
+
+  // Transform backend session data to frontend format
+  const transformSessionToScenario = useCallback((session, scenarioId) => {
+    if (!session || !session.session) return null;
+    const s = session.session;
+    const baseScenario = SCENARIOS[scenarioId] || SCENARIOS["finance_false"];
+    
+    // Transform claims from backend format to frontend format
+    const transformedClaims = s.verifications?.map((v, idx) => {
+      const claim = v.claim;
+      const isBad = v.verdict === "FALSE" || v.action === "BLOCK";
+      
+      // Transform agent assessments
+      const agents = {};
+      v.assessments?.forEach(assess => {
+        const agentName = assess.agent_name;
+        agents[agentName] = {
+          pos: assess.position === "LONG" ? "LONG" : "SHORT",
+          conf: assess.confidence,
+          summary: assess.summary,
+          findings: assess.findings?.map(f => ({
+            type: f.type,
+            text: f.text,
+            source: f.source,
+            rel: f.relevance
+          })) || []
+        };
+      });
+      
+      return {
+        id: claim.id,
+        text: claim.text,
+        type: claim.type,
+        severity: claim.severity,
+        bad: isBad,
+        highlight: claim.source_text || claim.text,
+        riskScore: v.risk_score,
+        verdict: v.verdict,
+        action: v.action,
+        rationale: v.rationale,
+        agents: agents
+      };
+    }) || [];
+    
+    return {
+      ...baseScenario,
+      id: scenarioId,
+      prompt: s.prompt,
+      response: s.llm_response,
+      claims: transformedClaims,
+      settlement: s.settlement ? {
+        oracle: s.settlement.oracle || "Sphinx",
+        confidence: s.settlement.confidence,
+        summary: s.settlement.summary,
+        evidence: {
+          supporting: s.settlement.evidence_supporting || 0,
+          contradicting: s.settlement.evidence_contradicting || 0,
+          neutral: s.settlement.evidence_neutral || 0
+        },
+        recommendation: s.settlement.recommendation
+      } : baseScenario.settlement
+    };
+  }, []);
+
+  const select = async (id) => { 
+    reset(); 
+    setSid(id); 
+    setScreen("INTRO");
+    setLoading(true);
+    setError(null);
+    
+    // Try to fetch from backend if connected
+    if (backendConnected) {
+      try {
+        const scenarioMap = {
+          "finance_false": "finance-false",
+          "finance_true": "finance-true",
+          "legal_false": "legal-false"
+        };
+        const backendId = scenarioMap[id];
+        if (backendId) {
+          const result = await api.getDemoScenario(backendId);
+          const transformed = transformSessionToScenario(result, id);
+          if (transformed) {
+            setSessionData(transformed);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch from backend, using fallback:", err);
+        setError(err.message);
+        // Fall back to hardcoded data
+      }
+    }
+    setLoading(false);
+  };
   const goHome = () => { reset(); setSid(null); setSlideIdx(0); setScreen("LANDING"); };
 
   const startVerify = useCallback(() => {
     if (!S) return;
     setScreen("VERIFYING");
-    const c0 = S.claims[0]; let t = 0; const total = 20, settle = 16;
+    setPrices([]);
+    setPills([]);
+    
+    // Use WebSocket streaming if backend is connected
+    if (backendConnected && S.prompt && S.response) {
+      const domain = S.domain?.toLowerCase() || "finance";
+      let claimIndex = 0;
+      let currentClaimId = null;
+      
+      wsRef.current = api.createVerificationStream(
+        { prompt: S.prompt, response: S.response, domain },
+        (event) => {
+          if (event.type === "error") {
+            setError(event.data.message);
+            // Fall back to mock animation
+            startMockVerification();
+            return;
+          }
+          
+          if (event.type === "claims_extracted") {
+            const claims = event.data.claims || [];
+            if (claims.length > 0) {
+              currentClaimId = claims[0].id;
+            }
+          }
+          
+          if (event.type === "agent_quote") {
+            const { agent_name, position, confidence } = event.data;
+            const ag = AGENTS[agent_name];
+            if (ag) {
+              setPills(prev => [...prev, {
+                id: `${Date.now()}-${Math.random()}`,
+                name: agent_name,
+                icon: ag.icon,
+                color: ag.color,
+                side: position,
+                p: confidence
+              }]);
+            }
+          }
+          
+          if (event.type === "risk_update") {
+            const { risk_score } = event.data;
+            setPrices(prev => [...prev, { t: prev.length + 1, p: risk_score }]);
+          }
+          
+          if (event.type === "settlement") {
+            // Update session data with final results
+            if (sessionData) {
+              const updated = { ...sessionData };
+              if (event.data.overall_action) {
+                updated.settlement = {
+                  oracle: event.data.oracle || "Sphinx",
+                  confidence: event.data.confidence,
+                  summary: event.data.summary,
+                  evidence: {
+                    supporting: event.data.evidence_supporting || 0,
+                    contradicting: event.data.evidence_contradicting || 0,
+                    neutral: event.data.evidence_neutral || 0
+                  },
+                  recommendation: event.data.recommendation
+                };
+              }
+              setSessionData(updated);
+            }
+            setTimeout(() => setScreen("VERDICT"), 500);
+          }
+        }
+      );
+    } else {
+      // Fall back to mock animation
+      startMockVerification();
+    }
+  }, [S, backendConnected, sessionData]);
+  
+  const startMockVerification = useCallback(() => {
+    if (!S) return;
+    const c0 = S.claims[0]; 
+    let t = 0; 
+    const total = 20, settle = 16;
     ref.current = setInterval(() => {
-      t++; if (t > total) { clearInterval(ref.current); return; }
+      t++; 
+      if (t > total) { 
+        clearInterval(ref.current); 
+        return; 
+      }
       const p = Math.max(0.02, Math.min(0.98, lerp(c0.bad ? 0.72 : 0.67, c0.riskScore, ease(Math.min(t / settle, 1))) + (Math.random() - 0.5) * 0.02));
       setPrices(prev => [...prev, { t, p }]);
       if (t % 2 === 0 && t < settle) {
-        const n = AN[Math.floor(Math.random() * 3)]; const ag = AGENTS[n];
+        const n = AN[Math.floor(Math.random() * 3)]; 
+        const ag = AGENTS[n];
         const side = c0.bad ? (Math.random() > 0.15 ? "SHORT" : "LONG") : (Math.random() > 0.15 ? "LONG" : "SHORT");
         setPills(prev => [...prev, { id: `${t}${Math.random()}`, name: n, icon: ag.icon, color: ag.color, side, p }]);
       }
@@ -289,6 +494,10 @@ export default function AxiomV7() {
             <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, letterSpacing: "0.12em", marginTop: 20, animation: "fadeUp 0.8s ease 0.8s both" }}>
               FOR ENTERPRISES · HIGH-RISK AI · HACKLYTICS 2026
             </div>
+            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 8, justifyContent: "center", fontFamily: MONO, fontSize: 8, color: backendConnected ? C.green : C.amber }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: backendConnected ? C.green : C.amber, boxShadow: `0 0 8px ${backendConnected ? C.green : C.amber}80` }} />
+              {backendConnected ? "Backend Connected" : "Using Demo Mode"}
+            </div>
           </div>
         </div>
       )}
@@ -352,6 +561,18 @@ export default function AxiomV7() {
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, animation: "fadeUp 0.5s ease" }}>
           <div style={{ maxWidth: 580, width: "100%" }}>
             <StepBar current="INTRO" />
+            {loading && (
+              <div style={{ padding: "12px 16px", background: `${C.accent}12`, border: `1px solid ${C.accent}30`, borderRadius: 10, marginBottom: 20, textAlign: "center" }}>
+                <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent }}>Loading from backend...</div>
+              </div>
+            )}
+            {error && (
+              <div style={{ padding: "12px 16px", background: `${C.red}12`, border: `1px solid ${C.red}30`, borderRadius: 10, marginBottom: 20 }}>
+                <div style={{ fontFamily: MONO, fontSize: 9, color: C.red, marginBottom: 4 }}>Backend Error</div>
+                <div style={{ fontSize: 11, color: C.text }}>{error}</div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>Using fallback demo data</div>
+              </div>
+            )}
             <div style={{ padding: "12px 16px", background: `${C.accent}12`, border: `1px solid ${C.accent}30`, borderRadius: 10, marginBottom: 20 }}>
               <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent, letterSpacing: "0.1em", marginBottom: 6 }}>USE CASE</div>
               <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65 }}>AI gives an answer → Axiom extracts every claim → 3 verifiers check against real data (SEC, Vector DB, Sphinx) → we <span style={{ color: C.green }}>allow</span>, <span style={{ color: C.amber }}>rewrite</span>, or <span style={{ color: C.red }}>block</span> before it reaches your team.</div>
