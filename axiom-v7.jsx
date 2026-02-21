@@ -15,19 +15,26 @@ const MONO = `'SF Mono','JetBrains Mono','Fira Code',monospace`;
 const SANS = `-apple-system,'Inter','Segoe UI',sans-serif`;
 
 const AGENTS = {
-  NumericVerifier: { icon: "⊞", color: C.cyan, name: "NumericVerifier", subtitle: "Structured Data & Numeric Validation", desc: "Extracts numeric assertions and cross-references them against authoritative sources — SEC filings, court records, earnings transcripts. Catches fabricated statistics, magnitude errors, and misquoted figures.", methodology: ["Parse claim for numeric entities (%, $, ratios, dates)", "Query authoritative databases for matching entity + metric + period", "Compare values against source within tolerance bands", "Flag anomalies (>2σ from norm), unit errors, temporal misalignment"], tools: ["SEC EDGAR API", "Court records", "Statistical anomaly detection"] },
-  RetrieverAgent: { icon: "⊚", color: C.blue, name: "RetrieverAgent", subtitle: "Semantic Evidence Retrieval via Actian VectorAI", desc: "Embeds claims into vectors and queries Actian VectorAI DB for semantically similar verified facts, prior claims, and source documents. Finds supporting and contradicting evidence ranked by similarity.", methodology: ["Embed claim text (384-dim sentence-transformer)", "Query Actian VectorAI DB across multiple indexes", "Score docs as SUPPORTS / CONTRADICTS / NEUTRAL", "Compute weighted stance (relevance × recency × authority)"], tools: ["Actian VectorAI DB", "Sentence-transformer", "Multi-index retrieval"] },
-  ConsistencyBot: { icon: "⊘", color: C.amber, name: "ConsistencyBot", subtitle: "Cross-Claim Logical Consistency", desc: "Analyzes all claims together to find logical, arithmetic, and temporal contradictions. Catches errors where individual claims seem plausible but are mathematically impossible together.", methodology: ["Build constraint graph linking all claims", "Check arithmetic consistency", "Verify temporal coherence", "Flag jointly impossible claim sets"], tools: ["Constraint solver", "Arithmetic engine", "Sphinx reasoning"] },
+  NumericVerifier: { icon: "⊞", color: C.cyan, name: "NumericVerifier", source: "SEC EDGAR · Court DB", subtitle: "Structured Data & Numeric Validation", desc: "Extracts numeric assertions and cross-references them against authoritative sources — SEC filings, court records, earnings transcripts. Catches fabricated statistics, magnitude errors, and misquoted figures.", methodology: ["Parse claim for numeric entities (%, $, ratios, dates)", "Query authoritative databases for matching entity + metric + period", "Compare values against source within tolerance bands", "Flag anomalies (>2σ from norm), unit errors, temporal misalignment"], tools: ["SEC EDGAR API", "Court records", "Statistical anomaly detection"] },
+  RetrieverAgent: { icon: "⊚", color: C.blue, name: "RetrieverAgent", source: "Actian VectorAI DB", subtitle: "Semantic Evidence Retrieval via Actian VectorAI", desc: "Embeds claims into vectors and queries Actian VectorAI DB for semantically similar verified facts, prior claims, and source documents. Finds supporting and contradicting evidence ranked by similarity.", methodology: ["Embed claim text (384-dim sentence-transformer)", "Query Actian VectorAI DB across multiple indexes", "Score docs as SUPPORTS / CONTRADICTS / NEUTRAL", "Compute weighted stance (relevance × recency × authority)"], tools: ["Actian VectorAI DB", "Sentence-transformer", "Multi-index retrieval"] },
+  ConsistencyBot: { icon: "⊘", color: C.amber, name: "ConsistencyBot", source: "Sphinx reasoning", subtitle: "Cross-Claim Logical Consistency", desc: "Analyzes all claims together to find logical, arithmetic, and temporal contradictions. Catches errors where individual claims seem plausible but are mathematically impossible together.", methodology: ["Build constraint graph linking all claims", "Check arithmetic consistency", "Verify temporal coherence", "Flag jointly impossible claim sets"], tools: ["Constraint solver", "Arithmetic engine", "Sphinx reasoning"] },
 };
 const AN = ["NumericVerifier", "RetrieverAgent", "ConsistencyBot"];
 
-// ─── Slideshow ───
+// Demo step order for progress indicator
+const DEMO_STEPS = [
+  { key: "INTRO", label: "Context", short: "1" },
+  { key: "PROMPT", label: "Prompt", short: "2" },
+  { key: "RESPONSE", label: "AI response", short: "3" },
+  { key: "VERIFYING", label: "Verify", short: "4" },
+  { key: "VERDICT", label: "Verdict", short: "5" },
+];
+
+// ─── Slideshow (enterprise risk framing) ───
 const SLIDES = [
-  { title: "\"How many R's in strawberry?\"", body: "GPT confidently said 2. The answer is 3. Millions of people saw this go viral — a simple counting task that AI couldn't handle.", color: C.amber, year: "2024" },
-  { title: "Mata v. Avianca", body: "Two lawyers filed a federal court brief citing 6 cases that didn't exist. Every single citation was hallucinated by ChatGPT. Both attorneys were sanctioned by the judge.", color: C.red, year: "2023" },
-  { title: "Air Canada chatbot", body: "An AI chatbot promised a customer a bereavement discount that didn't exist. Air Canada was held legally liable for the chatbot's fabricated policy. The airline had to pay.", color: C.red, year: "2024" },
-  { title: "Google AI: \"Put glue on pizza\"", body: "Google's AI Overview recommended adding glue to pizza sauce to help cheese stick better. It had scraped a joke from Reddit and presented it as fact to millions of users.", color: C.amber, year: "2024" },
-  { title: "The pattern is clear", body: "AI systems confidently produce false information — fabricated data, invented citations, fictional events. In high-stakes domains like finance, law, and healthcare, a single hallucination can cost millions.", color: C.white, year: "" },
+  { title: "Lawyers cited 6 fake cases", body: "ChatGPT invented every citation. Both attorneys sanctioned. Enterprise AI without verification = liability.", color: C.red, year: "Mata v. Avianca · 2023" },
+  { title: "Air Canada liable for chatbot lie", body: "AI promised a discount that didn't exist. Court held the company responsible. High-risk AI demands guardrails.", color: C.red, year: "2024" },
+  { title: "In high-risk workflows, one error = regulatory exposure.", body: "Axiom verifies every claim against authoritative sources before output reaches your team. Audit-ready. Governance-first.", color: C.white, year: "" },
 ];
 
 // ─── Scenarios ───
@@ -50,7 +57,7 @@ const SCENARIOS = {
       { id: "CLM-004", text: "Headquartered in San Francisco", type: "ENTITY", severity: "LOW", bad: false, highlight: "San Francisco", riskScore: 0.94, verdict: "TRUE", action: "ALLOW", rationale: "Confirmed across multiple sources.",
         agents: { NumericVerifier: { pos: "LONG", conf: 0.98, summary: "SEC filing confirms SF HQ.", findings: [{ type: "CONFIRMED", text: "10-K: 100 Market St, San Francisco.", source: "SEC EDGAR · 10-K", rel: 0.99 }] }, RetrieverAgent: { pos: "LONG", conf: 0.97, summary: "Multiple sources confirm.", findings: [{ type: "SUPPORTS", text: "Website, LinkedIn, Crunchbase all list SF.", source: "Actian VectorAI · Entity Index", rel: 0.98 }] }, ConsistencyBot: { pos: "LONG", conf: 0.95, summary: "Consistent.", findings: [{ type: "CONSISTENT", text: "No contradictions.", source: "Consistency check", rel: 0.96 }] } } },
     ],
-    impact: "Without Axiom, Meridian would have evaluated a $50M allocation based on fabricated 28% growth.",
+    impact: "Without Axiom, the investment committee would have approved a $50M allocation on fabricated data. Axiom blocked the output — decision integrity preserved, audit trail complete.",
     settlement: { oracle: "Sphinx", confidence: 0.94, summary: "3 of 4 claims FALSE. Revenue, margin, and buyback fabricated. Only HQ verified.", evidence: { supporting: 2, contradicting: 10, neutral: 1 }, recommendation: "Block output. Rewrite with verified figures." },
   },
   finance_true: {
@@ -69,7 +76,7 @@ const SCENARIOS = {
       { id: "CLM-012", text: "Gaming revenue $2.9 billion", type: "NUMERIC", severity: "MED", bad: false, highlight: "$2.9 billion", riskScore: 0.92, verdict: "TRUE", action: "ALLOW", rationale: "Matches SEC filing ($2.865B rounds to $2.9B).",
         agents: { NumericVerifier: { pos: "LONG", conf: 0.95, summary: "10-K: $2.865B.", findings: [{ type: "CONFIRMED", text: "Gaming $2.865B rounds to $2.9B.", source: "SEC EDGAR", rel: 0.97 }] }, RetrieverAgent: { pos: "LONG", conf: 0.91, summary: "Confirmed.", findings: [{ type: "SUPPORTS", text: "Analysts cite $2.9B gaming.", source: "Actian VectorAI", rel: 0.90 }] }, ConsistencyBot: { pos: "LONG", conf: 0.93, summary: "Sums to total.", findings: [{ type: "CONSISTENT", text: "Part of segment validation.", source: "Arithmetic", rel: 0.94 }] } } },
     ],
-    impact: "All 3 claims verified in 11 seconds. Zero manual fact-checking needed.",
+    impact: "All 3 claims verified in 11 seconds. Compliance-ready: every figure traceable to SEC filings. No manual fact-check before the trade.",
     settlement: { oracle: "Sphinx", confidence: 0.97, summary: "All claims TRUE. Confirmed across SEC filings, press releases, and 12 corroborating sources.", evidence: { supporting: 12, contradicting: 0, neutral: 0 }, recommendation: "Allow output." },
   },
   legal_false: {
@@ -88,7 +95,7 @@ const SCENARIOS = {
       { id: "CLM-022", text: "Privilege consistently upheld across circuits", type: "LEGAL", severity: "MED", bad: true, highlight: "consistently upheld across federal circuits", riskScore: 0.18, verdict: "FALSE", action: "REWRITE", rationale: "Overly broad. Several circuits have significant exceptions.",
         agents: { NumericVerifier: { pos: "SHORT", conf: 0.72, summary: "Too broad.", findings: [{ type: "FLAG", text: "'Consistently across all circuits' overstates consensus.", source: "Circuit analysis", rel: 0.80 }] }, RetrieverAgent: { pos: "SHORT", conf: 0.78, summary: "Exceptions exist.", findings: [{ type: "CONTRADICTION", text: "9th Cir. (Agster v. Maricopa) + 3rd Cir. narrower test.", source: "Actian VectorAI · Case Law", rel: 0.85 }] }, ConsistencyBot: { pos: "SHORT", conf: 0.70, summary: "Sweeping generalization.", findings: [{ type: "FLAG", text: "Universal circuit claims are almost always overstatements.", source: "Legal reasoning", rel: 0.75 }] } } },
     ],
-    impact: "Without Axiom, David would have cited fabricated cases in court — risking Rule 11 sanctions, exactly like Mata v. Avianca (2023).",
+    impact: "Without Axiom, the firm would have filed fabricated citations — Rule 11 sanctions, malpractice exposure, reputational risk. Axiom blocked; matter escalated to human counsel with full audit trail.",
     settlement: { oracle: "Sphinx", confidence: 0.96, summary: "2 citations completely fabricated. Third is an overstatement. No cited authority exists.", evidence: { supporting: 0, contradicting: 9, neutral: 0 }, recommendation: "Block entirely. Direct to Westlaw/LexisNexis." },
   },
 };
@@ -120,6 +127,25 @@ function Btn({ children, onClick, color = C.accent, filled, s }) {
   return <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", padding: "12px 28px", borderRadius: 8, cursor: "pointer", transition: "all 0.2s", background: filled ? color : h ? color + "18" : "transparent", color: filled ? C.bg : color, border: filled ? "none" : `1px solid ${color}35`, transform: h ? "translateY(-1px)" : "none", ...s }}>{children}</button>;
 }
 
+function StepBar({ current }) {
+  const idx = DEMO_STEPS.findIndex(s => s.key === current);
+  if (idx === -1) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 16 }}>
+      {DEMO_STEPS.map((step, i) => {
+        const done = i < idx; const active = i === idx;
+        return (
+          <div key={step.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: MONO, fontSize: 11, fontWeight: 700, background: active ? C.accent : done ? C.green : C.surface, color: active || done ? C.bg : C.dim, border: `1px solid ${active ? C.accent : done ? C.green : C.border}` }}>{done ? "✓" : step.short}</div>
+            {i < DEMO_STEPS.length - 1 && <div style={{ width: 24, height: 2, background: i < idx ? C.green : C.border, borderRadius: 1 }} />}
+          </div>
+        );
+      })}
+      <span style={{ fontFamily: MONO, fontSize: 9, color: C.dim, marginLeft: 10, letterSpacing: "0.08em" }}>{DEMO_STEPS[idx].label.toUpperCase()}</span>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════
 export default function AxiomV7() {
   const [screen, setScreen] = useState("LANDING");
@@ -146,18 +172,18 @@ export default function AxiomV7() {
   const startVerify = useCallback(() => {
     if (!S) return;
     setScreen("VERIFYING");
-    const c0 = S.claims[0]; let t = 0; const total = 24, settle = 19;
+    const c0 = S.claims[0]; let t = 0; const total = 20, settle = 16;
     ref.current = setInterval(() => {
       t++; if (t > total) { clearInterval(ref.current); return; }
-      const p = Math.max(0.02, Math.min(0.98, lerp(c0.bad ? 0.71 : 0.68, c0.riskScore, ease(Math.min(t / settle, 1))) + (Math.random() - 0.5) * 0.02));
+      const p = Math.max(0.02, Math.min(0.98, lerp(c0.bad ? 0.72 : 0.67, c0.riskScore, ease(Math.min(t / settle, 1))) + (Math.random() - 0.5) * 0.02));
       setPrices(prev => [...prev, { t, p }]);
       if (t % 2 === 0 && t < settle) {
         const n = AN[Math.floor(Math.random() * 3)]; const ag = AGENTS[n];
         const side = c0.bad ? (Math.random() > 0.15 ? "SHORT" : "LONG") : (Math.random() > 0.15 ? "LONG" : "SHORT");
         setPills(prev => [...prev, { id: `${t}${Math.random()}`, name: n, icon: ag.icon, color: ag.color, side, p }]);
       }
-      if (t === settle + 3) setScreen("VERDICT");
-    }, 360);
+      if (t === settle + 2) setScreen("VERDICT");
+    }, 220);
   }, [S]);
 
   const renderResp = () => {
@@ -220,107 +246,121 @@ export default function AxiomV7() {
         @keyframes stampIn{0%{opacity:0;transform:scale(2)}50%{opacity:1;transform:scale(.94)}100%{transform:scale(1)}}
         @keyframes glowPulse{0%,100%{box-shadow:0 0 24px var(--gc,transparent)}50%{box-shadow:0 0 48px var(--gc,transparent)}}
         @keyframes slideRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+        @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        @keyframes glow{0%,100%{filter:drop-shadow(0 0 12px currentColor);opacity:1}50%{filter:drop-shadow(0 0 28px currentColor);opacity:.95}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes borderGlow{0%,100%{box-shadow:0 0 8px ${C.accent}40}50%{box-shadow:0 0 20px ${C.accent}70, 0 0 30px ${C.accent}30}}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${C.border};border-radius:2px}
       `}</style>
 
-      {/* ══════ LANDING — just Axiom ══════ */}
+      {/* ══════ LANDING — flashy hero + use case explainer ══════ */}
       {screen === "LANDING" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, opacity: 0.02, backgroundImage: `linear-gradient(${C.accent} 1px, transparent 1px), linear-gradient(90deg, ${C.accent} 1px, transparent 1px)`, backgroundSize: "60px 60px" }} />
-          <div style={{ position: "absolute", top: "35%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}06 0%, transparent 60%)` }} />
+          <div style={{ position: "absolute", inset: 0, opacity: 0.04, backgroundImage: `linear-gradient(${C.accent} 1px, transparent 1px), linear-gradient(90deg, ${C.accent} 1px, transparent 1px)`, backgroundSize: "48px 48px", animation: "float 8s ease-in-out infinite" }} />
+          <div style={{ position: "absolute", top: "30%", left: "50%", transform: "translate(-50%,-50%)", width: 800, height: 800, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent}12 0%, ${C.cyan}06 40%, transparent 65%)`, backgroundSize: "200% 200%", animation: "gradientShift 12s ease infinite" }} />
+          <div style={{ position: "absolute", bottom: "20%", right: "10%", width: 400, height: 400, borderRadius: "50%", background: `radial-gradient(circle, ${C.blue}08 0%, transparent 60%)`, filter: "blur(40px)" }} />
 
           <div style={{ position: "relative", textAlign: "center", animation: "fadeUp 0.8s ease" }}>
-            <div style={{ fontFamily: MONO, fontSize: 72, fontWeight: 800, letterSpacing: "0.12em", lineHeight: 1, marginBottom: 20, animation: "fadeUp 0.8s ease 0.2s both" }}>
+            <div style={{ fontFamily: MONO, fontSize: 80, fontWeight: 800, letterSpacing: "0.14em", lineHeight: 1, marginBottom: 12, animation: "fadeUp 0.8s ease 0.2s both", background: `linear-gradient(135deg, ${C.accent} 0%, ${C.cyan} 50%, ${C.accent} 100%)`, backgroundSize: "200% auto", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", textShadow: "none", filter: "drop-shadow(0 0 24px rgba(226,168,85,0.4))" }}>
               AXIOM
             </div>
-            <div style={{ fontSize: 16, color: C.muted, lineHeight: 1.7, marginBottom: 40, maxWidth: 440, margin: "0 auto 40px", animation: "fadeUp 0.8s ease 0.4s both" }}>
-              Runtime factuality guardrails for AI outputs
+            <div style={{ fontSize: 22, fontWeight: 700, color: C.white, marginBottom: 10, maxWidth: 500, margin: "0 auto", animation: "fadeUp 0.8s ease 0.3s both", textShadow: `0 0 30px ${C.accent}30` }}>
+              AI you can trust for high-stakes decisions.
             </div>
-            <div style={{ animation: "fadeUp 0.8s ease 0.6s both" }}>
-              <Btn onClick={() => setScreen("SLIDESHOW")} color={C.accent} filled>BEGIN ▸</Btn>
+            <div style={{ fontSize: 14, color: C.muted, marginBottom: 20, animation: "fadeUp 0.8s ease 0.4s both" }}>
+              Enterprise factuality guardrails · Verify before any output reaches your team
             </div>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, letterSpacing: "0.15em", marginTop: 48, animation: "fadeUp 0.8s ease 0.8s both" }}>
-              HACKLYTICS 2026
+            <div style={{ maxWidth: 520, margin: "0 auto 28px", padding: "16px 20px", background: "linear-gradient(135deg, rgba(226,168,85,0.08) 0%, rgba(34,211,238,0.06) 100%)", border: `1px solid ${C.accent}30`, borderRadius: 12, animation: "fadeUp 0.8s ease 0.45s both, borderGlow 3s ease-in-out infinite" }}>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent, letterSpacing: "0.15em", marginBottom: 8 }}>THE USE CASE</div>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.75 }}>
+                Your team asks AI for a summary or an answer. <span style={{ color: C.accent }}>Before that answer reaches anyone</span>, Axiom pulls out every factual claim, runs it through 3 verifiers (SEC/court data, vector DB, logic), and <span style={{ color: C.green }}>allows</span>, <span style={{ color: C.amber }}>rewrites</span>, or <span style={{ color: C.red }}>blocks</span> — with a full audit trail. So you can use AI for big decisions without getting burned.
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════ SLIDESHOW — AI failures ══════ */}
-      {screen === "SLIDESHOW" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
-          <div key={slideIdx} style={{ maxWidth: 520, textAlign: "center", animation: "fadeUp 0.4s ease" }}>
-            {slide.year && <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, letterSpacing: "0.2em", marginBottom: 16 }}>{slide.year}</div>}
-            <div style={{ fontSize: 28, fontWeight: 700, color: slide.color, lineHeight: 1.4, marginBottom: 16 }}>{slide.title}</div>
-            <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.85, maxWidth: 460, margin: "0 auto" }}>{slide.body}</div>
-          </div>
-
-          {/* Dots + nav */}
-          <div style={{ position: "absolute", bottom: 60, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              {SLIDES.map((_, i) => (
-                <div key={i} onClick={() => setSlideIdx(i)} style={{
-                  width: i === slideIdx ? 24 : 8, height: 8, borderRadius: 4, cursor: "pointer", transition: "all 0.3s",
-                  background: i === slideIdx ? C.accent : C.border,
-                }} />
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", animation: "fadeUp 0.8s ease 0.5s both" }}>
+              <button onClick={() => { setPrices([]); setPills([]); setDrawer(null); setShowClaims(false); setShowAdv(false); setSid("finance_false"); setScreen("INTRO"); }} style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", padding: "14px 32px", borderRadius: 10, cursor: "pointer", background: `linear-gradient(135deg, ${C.accent} 0%, #c9943a 100%)`, color: C.bg, border: "none", boxShadow: `0 0 24px ${C.accent}50, 0 4px 14px rgba(0,0,0,0.3)`, transition: "all 0.2s" }} onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = `0 0 36px ${C.accent}70, 0 6px 20px rgba(0,0,0,0.35)`; }} onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 0 24px ${C.accent}50, 0 4px 14px rgba(0,0,0,0.3)`; }}>SEE DEMO ▸</button>
+              <Btn onClick={() => setScreen("SLIDESHOW")} color={C.accent}>THE RISK</Btn>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 28, flexWrap: "wrap", animation: "fadeUp 0.8s ease 0.7s both" }}>
+              {["Actian VectorAI", "Sphinx", "Databricks", "SafetyKit"].map(t => (
+                <span key={t} style={{ fontFamily: MONO, fontSize: 8, color: C.darkest, padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 6, letterSpacing: "0.06em", background: C.surface }}>{t}</span>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              {slideIdx < SLIDES.length - 1 ? (
-                <Btn onClick={() => setSlideIdx(slideIdx + 1)} color={C.accent}>NEXT ▸</Btn>
-              ) : (
-                <Btn onClick={() => setScreen("SCENARIOS")} color={C.accent} filled>SEE HOW AXIOM SOLVES THIS ▸</Btn>
-              )}
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, letterSpacing: "0.12em", marginTop: 20, animation: "fadeUp 0.8s ease 0.8s both" }}>
+              FOR ENTERPRISES · HIGH-RISK AI · HACKLYTICS 2026
             </div>
-            <button onClick={() => setScreen("SCENARIOS")} style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, background: "none", border: "none", cursor: "pointer", letterSpacing: "0.08em" }}>
-              SKIP →
-            </button>
           </div>
         </div>
       )}
 
-      {/* ══════ SCENARIOS — selector ══════ */}
+      {/* ══════ SLIDESHOW — 3 punchy problem slides ══════ */}
+      {screen === "SLIDESHOW" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
+          <div key={slideIdx} style={{ maxWidth: 500, textAlign: "center", animation: "fadeUp 0.4s ease" }}>
+            {slide.year && <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, letterSpacing: "0.18em", marginBottom: 12 }}>{slide.year}</div>}
+            <div style={{ fontSize: 28, fontWeight: 800, color: slide.color, lineHeight: 1.35, marginBottom: 16, textShadow: slide.color !== C.white ? `0 0 20px ${slide.color}50` : "none" }}>{slide.title}</div>
+            <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.75 }}>{slide.body}</div>
+          </div>
+          <div style={{ position: "absolute", bottom: 50, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              {SLIDES.map((_, i) => (
+                <div key={i} onClick={() => setSlideIdx(i)} style={{ width: i === slideIdx ? 22 : 8, height: 8, borderRadius: 4, cursor: "pointer", transition: "all 0.3s", background: i === slideIdx ? C.accent : C.border }} />
+              ))}
+            </div>
+            {slideIdx < SLIDES.length - 1 ? (
+              <Btn onClick={() => setSlideIdx(slideIdx + 1)} color={C.accent}>NEXT ▸</Btn>
+            ) : (
+              <Btn onClick={() => setScreen("SCENARIOS")} color={C.accent} filled>SEE ENTERPRISE DEMO ▸</Btn>
+            )}
+            <button onClick={() => setScreen("SCENARIOS")} style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, background: "none", border: "none", cursor: "pointer" }}>Skip →</button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════ SCENARIOS — enterprise high-stakes ══════ */}
       {screen === "SCENARIOS" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, animation: "fadeUp 0.5s ease" }}>
-          <div style={{ fontFamily: MONO, fontSize: 10, color: C.accent, letterSpacing: "0.25em", marginBottom: 10 }}>AXIOM</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.white, marginBottom: 6 }}>See it in action</div>
-          <div style={{ fontSize: 13, color: C.dim, marginBottom: 32, maxWidth: 440, textAlign: "center", lineHeight: 1.7 }}>
-            Each scenario walks through a real-world use case — from AI-generated financial reports to legal research — and shows how Axiom catches errors before they cause damage.
-          </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          <div style={{ fontFamily: MONO, fontSize: 10, color: C.accent, letterSpacing: "0.25em", marginBottom: 8 }}>HIGH-STAKES USE CASES</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.white, marginBottom: 8 }}>Enterprise scenarios · Audit-ready verdicts</div>
+          <div style={{ fontSize: 12, color: C.dim, marginBottom: 24 }}>Investment committees, legal, compliance — verify before the decision</div>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
             {SL_LIST.map(id => {
               const s = SCENARIOS[id];
+              const outcome = s.claims.some(c => c.bad) ? (id === "legal_false" ? "Prevented sanctions" : "Blocked $50M mistake") : "Verified in 11s";
               return (
-                <div key={id} onClick={() => select(id)} style={{ width: 215, padding: "20px 16px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer", textAlign: "left", transition: "all 0.25s" }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = s.color + "50"; e.currentTarget.style.transform = "translateY(-3px)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "none"; }}>
-                  <div style={{ fontSize: 28, marginBottom: 10 }}>{s.icon}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: s.color, marginBottom: 4 }}>{s.label}</div>
-                  <Tag color={s.color}>{s.domain}</Tag>
-                  <div style={{ fontSize: 11, color: C.dim, lineHeight: 1.6, marginTop: 10 }}>{s.tagline}</div>
+                <div key={id} onClick={() => select(id)} style={{ width: 220, padding: "22px 18px", background: `linear-gradient(145deg, ${C.surface} 0%, ${C.surfaceAlt} 100%)`, border: `2px solid ${C.border}`, borderRadius: 16, cursor: "pointer", textAlign: "left", transition: "all 0.3s ease", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.transform = "translateY(-6px) scale(1.02)"; e.currentTarget.style.boxShadow = `0 12px 40px rgba(0,0,0,0.3), 0 0 30px ${s.color}40`; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0) scale(1)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.2)"; }}>
+                  <div style={{ fontSize: 36, marginBottom: 10, filter: `drop-shadow(0 0 8px ${s.color}60)` }}>{s.icon}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, fontWeight: 700, color: s.color, marginBottom: 4, textShadow: `0 0 12px ${s.color}50` }}>{s.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 6 }}>{outcome}</div>
+                  <div style={{ fontSize: 10, color: C.dim, lineHeight: 1.5 }}>{s.tagline}</div>
                 </div>
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 36, flexWrap: "wrap" }}>
-            {["Finance Track", "SafetyKit", "Actian VectorAI", "Sphinx Oracle", "Databricks"].map(t => (
-              <span key={t} style={{ fontFamily: MONO, fontSize: 8, color: C.darkest, padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, letterSpacing: "0.08em" }}>{t}</span>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
+            {["Actian VectorAI", "Sphinx", "Databricks", "SafetyKit"].map(t => (
+              <span key={t} style={{ fontFamily: MONO, fontSize: 8, color: C.darkest, padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 4, letterSpacing: "0.06em" }}>{t}</span>
             ))}
           </div>
         </div>
       )}
 
-      {/* ══════ INTRO ══════ */}
+      {/* ══════ INTRO — one line + go ══════ */}
       {screen === "INTRO" && S && (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, animation: "fadeUp 0.5s ease" }}>
-          <div style={{ maxWidth: 580, textAlign: "center" }}>
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 }}><Tag color={S.color}>{S.domain}</Tag></div>
-            <div style={{ padding: 24, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: "left", marginBottom: 24 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: C.white, marginBottom: 4 }}>{S.company}</div>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: C.dim, marginBottom: 16 }}>{S.companyDesc}</div>
-              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.85 }}>{S.context}</div>
+          <div style={{ maxWidth: 580, width: "100%" }}>
+            <StepBar current="INTRO" />
+            <div style={{ padding: "12px 16px", background: `${C.accent}12`, border: `1px solid ${C.accent}30`, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent, letterSpacing: "0.1em", marginBottom: 6 }}>USE CASE</div>
+              <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65 }}>AI gives an answer → Axiom extracts every claim → 3 verifiers check against real data (SEC, Vector DB, Sphinx) → we <span style={{ color: C.green }}>allow</span>, <span style={{ color: C.amber }}>rewrite</span>, or <span style={{ color: C.red }}>block</span> before it reaches your team.</div>
             </div>
-            <Btn onClick={() => setScreen("PROMPT")} color={C.accent}>SEE THE PROMPT ▸</Btn>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 12 }}><Tag color={S.color}>{S.domain}</Tag></div>
+              <div style={{ fontSize: 15, color: C.text, marginBottom: 20, lineHeight: 1.6 }}>{S.context}</div>
+              <Btn onClick={() => setScreen("PROMPT")} color={C.accent} filled>RUN DEMO ▸</Btn>
+            </div>
           </div>
         </div>
       )}
@@ -328,10 +368,11 @@ export default function AxiomV7() {
       {/* ══════ PROMPT ══════ */}
       {screen === "PROMPT" && S && (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, animation: "fadeUp 0.5s ease" }}>
-          <div style={{ maxWidth: 620, width: "100%" }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.2em", marginBottom: 12 }}>PROMPT FROM {S.analyst.toUpperCase()}</div>
-            <div style={{ padding: "20px 24px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 15, color: C.text, lineHeight: 1.8, fontStyle: "italic", borderLeft: `3px solid ${C.accent}`, marginBottom: 28 }}>"{S.prompt}"</div>
-            <div style={{ textAlign: "center" }}><Btn onClick={() => setScreen("RESPONSE")} color={C.accent}>SEE AI RESPONSE ▸</Btn></div>
+          <div style={{ maxWidth: 600, width: "100%" }}>
+            <StepBar current="PROMPT" />
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.15em", marginBottom: 10 }}>PROMPT</div>
+            <div style={{ padding: "18px 22px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 14, color: C.text, lineHeight: 1.7, fontStyle: "italic", borderLeft: `3px solid ${C.accent}`, marginBottom: 20 }}>"{S.prompt}"</div>
+            <div style={{ textAlign: "center" }}><Btn onClick={() => setScreen("RESPONSE")} color={C.accent} filled>AI RESPONSE ▸</Btn></div>
           </div>
         </div>
       )}
@@ -340,20 +381,37 @@ export default function AxiomV7() {
       {screen === "RESPONSE" && S && (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, animation: "fadeUp 0.5s ease" }}>
           <div style={{ maxWidth: 700, width: "100%" }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.2em", marginBottom: 12 }}>AI-GENERATED RESPONSE</div>
-            <div style={{ padding: 24, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, color: C.text, lineHeight: 1.9, marginBottom: 16 }}>{renderResp()}</div>
+            <StepBar current={showClaims ? "RESPONSE" : "RESPONSE"} />
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.15em", marginBottom: 10 }}>AI SAID THIS</div>
+            <div style={{ padding: 22, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, color: C.text, lineHeight: 1.85, marginBottom: 16 }}>{renderResp()}</div>
             {!showClaims ? (
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>This looks convincing. But can we trust it?<br /><span style={{ color: C.accent }}>Axiom</span> intercepts this before anyone acts on it.</div>
-                <Btn onClick={() => setShowClaims(true)} color={S.claims.some(c => c.bad) ? C.red : C.green}>SCAN FOR CLAIMS ▸</Btn>
+                <div style={{ fontSize: 14, color: C.muted, marginBottom: 14 }}>In high-risk workflows you need more than trust. <span style={{ color: C.accent, fontWeight: 600 }}>Axiom</span> verifies every claim against authoritative sources before it reaches your team — audit-ready.</div>
+                <Btn onClick={() => setShowClaims(true)} color={S.claims.some(c => c.bad) ? C.red : C.green} filled>VERIFY WITH AXIOM ▸</Btn>
               </div>
             ) : (
               <div style={{ animation: "fadeUp 0.5s ease" }}>
-                <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.15em", marginBottom: 8 }}>EXTRACTED CLAIMS ({S.claims.length})</div>
-                {S.claims.map(c => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, marginBottom: 4, flexWrap: "wrap" }}><span style={{ fontFamily: MONO, fontSize: 9, color: C.darkest }}>{c.id}</span><Tag color={c.severity === "CRITICAL" ? C.red : c.severity === "HIGH" ? C.amber : C.green}>{c.severity}</Tag><Tag color={C.blue}>{c.type}</Tag><span style={{ fontSize: 11, color: C.text, flex: 1, minWidth: 160 }}>{c.text}</span></div>)}
+                <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.1em", marginBottom: 8 }}>{S.claims.length} CLAIMS</div>
+                {S.claims.map(c => <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 6, marginBottom: 4, flexWrap: "wrap" }}><span style={{ fontFamily: MONO, fontSize: 9, color: C.darkest }}>{c.id}</span><Tag color={c.severity === "CRITICAL" ? C.red : c.severity === "HIGH" ? C.amber : C.green}>{c.severity}</Tag><span style={{ fontSize: 11, color: C.text, flex: 1, minWidth: 140 }}>{c.text}</span></div>)}
+                <div style={{ marginTop: 16, padding: "14px 16px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent, letterSpacing: "0.1em", marginBottom: 10 }}>WHERE THE VERIFIERS RUN</div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {AN.map(n => {
+                      const ag = AGENTS[n];
+                      return (
+                        <div key={n} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: C.surface, border: `1px solid ${ag.color}30`, borderRadius: 6 }}>
+                          <span style={{ fontSize: 16, color: ag.color }}>{ag.icon}</span>
+                          <div>
+                            <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: ag.color }}>{n.replace("ConsistencyBot", "Consistency")}</div>
+                            <div style={{ fontFamily: MONO, fontSize: 8, color: C.dim }}>← {ag.source}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div style={{ textAlign: "center", marginTop: 16 }}>
-                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Running {S.claims.length} claims through <span style={{ color: C.accent }}>3 independent verifiers</span>...</div>
-                  <Btn onClick={startVerify} color={C.accent} filled>VERIFY CLAIMS ▸</Btn>
+                  <Btn onClick={startVerify} color={C.accent} filled>RUN VERIFICATION ▸</Btn>
                 </div>
               </div>
             )}
@@ -361,68 +419,92 @@ export default function AxiomV7() {
         </div>
       )}
 
-      {/* ══════ VERIFYING ══════ */}
+      {/* ══════ VERIFYING — big score + 3 agents with sources ══════ */}
       {screen === "VERIFYING" && S && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 32px", animation: "fadeUp 0.4s ease" }}>
-          <div style={{ width: "100%", maxWidth: 800 }}>
-            <div style={{ textAlign: "center", marginBottom: 14, borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.12em" }}>VERIFYING · {S.claims[0].id}</span>
-              <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>"{S.claims[0].text}"</div>
+          <div style={{ width: "100%", maxWidth: 760 }}>
+            <StepBar current="VERIFYING" />
+            <div style={{ textAlign: "center", marginBottom: 12 }}>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.12em", marginBottom: 4 }}>LIVE VERIFICATION</div>
+              <div style={{ fontSize: 12, color: C.muted }}>"{S.claims[0].text.slice(0, 50)}…"</div>
             </div>
-            <div style={{ textAlign: "center", marginBottom: 8 }}>
-              <div style={{ fontFamily: MONO, fontSize: 12, color: C.dim, letterSpacing: "0.1em", marginBottom: 4 }}>FACTUALITY SCORE</div>
-              <div style={{ fontFamily: MONO, fontSize: 64, fontWeight: 800, color: pc, transition: "color 0.3s", textShadow: `0 0 24px ${pc}33`, lineHeight: 1 }}>{(last * 100).toFixed(1)}<span style={{ fontSize: 24, color: C.dimmer }}>%</span></div>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontFamily: MONO, fontSize: 11, color: C.dim, letterSpacing: "0.1em", marginBottom: 4 }}>FACTUALITY SCORE</div>
+              <div style={{ fontFamily: MONO, fontSize: 64, fontWeight: 800, color: pc, transition: "color 0.3s", textShadow: `0 0 40px ${pc}60, 0 0 80px ${pc}30`, lineHeight: 1, animation: "glow 2s ease-in-out infinite" }}>{(last * 100).toFixed(0)}<span style={{ fontSize: 24, color: C.dimmer }}>%</span></div>
             </div>
-            {showAdv && <div style={{ height: 110, margin: "8px 0", borderRadius: 8, overflow: "hidden", background: C.surface, border: `1px solid ${C.border}`, animation: "fadeIn 0.3s ease" }}><ResponsiveContainer><AreaChart data={prices} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={pc} stopOpacity={0.25} /><stop offset="95%" stopColor={pc} stopOpacity={0} /></linearGradient></defs><YAxis domain={[0, 1]} hide /><ReferenceLine y={0.5} stroke={C.border} strokeDasharray="4 4" /><Area type="monotone" dataKey="p" stroke={pc} strokeWidth={2.5} fill="url(#tg)" dot={false} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div>}
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", minHeight: 28, padding: "6px 0" }}>
-              {pills.slice(-6).map(a => <div key={a.id} onClick={() => setDrawer({ type: "agent", name: a.name, claimIdx: 0 })} style={{ fontFamily: MONO, fontSize: 9, padding: "4px 10px", borderRadius: 16, cursor: "pointer", background: a.side === "SHORT" ? C.redBg : C.greenBg, border: `1px solid ${a.side === "SHORT" ? C.redBorder : C.greenBorder}`, color: a.side === "SHORT" ? C.red : C.green, animation: "slideIn 0.3s ease", whiteSpace: "nowrap" }}>{a.icon} {a.name} {a.side === "SHORT" ? "↓ doubts" : "↑ confirms"}</div>)}
+            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.1em", marginBottom: 10, textAlign: "center" }}>3 INDEPENDENT VERIFIERS · EACH QUERIES A DIFFERENT SOURCE</div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 12 }}>
+              {AN.map((n, i) => {
+                const ag = AGENTS[n];
+                const targetConf = S.claims[0].agents[n].conf;
+                const anim = Math.min(1, (prices.length / 8) * (1 + i * 0.2));
+                const w = targetConf * anim * 100;
+                return (
+                  <div key={n} onClick={() => setDrawer({ type: "agent", name: n, claimIdx: 0 })} style={{ flex: 1, maxWidth: 200, padding: "16px 18px", background: `linear-gradient(180deg, ${C.surface} 0%, ${C.bg} 100%)`, border: `2px solid ${C.border}`, borderRadius: 12, textAlign: "center", transition: "all 0.25s", cursor: "pointer", boxShadow: `0 0 0 0 ${ag.color}00` }} onMouseEnter={e => { e.currentTarget.style.borderColor = ag.color; e.currentTarget.style.boxShadow = `0 0 24px ${ag.color}50, 0 0 40px ${ag.color}20`; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}>
+                    <div style={{ fontSize: 24, marginBottom: 6, filter: `drop-shadow(0 0 6px ${ag.color}80)` }}>{ag.icon}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: ag.color }}>{n.replace("ConsistencyBot", "Consistency")}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 8, color: C.dim, marginTop: 2, marginBottom: 8 }}>← {ag.source}</div>
+                    <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${w}%`, background: `linear-gradient(90deg, ${ag.color} 0%, ${ag.color}dd 100%)`, borderRadius: 4, transition: "width 0.5s ease", boxShadow: `0 0 10px ${ag.color}60` }} />
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: ag.color, marginTop: 6, fontWeight: 700 }}>{(targetConf * 100).toFixed(0)}%</div>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 8 }}>
-              {AN.map(n => { const ag = AGENTS[n]; return <div key={n} onClick={() => setDrawer({ type: "agent", name: n, claimIdx: 0 })} style={{ padding: "10px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", textAlign: "center", flex: 1, maxWidth: 200, transition: "all 0.2s" }} onMouseEnter={e => e.currentTarget.style.borderColor = ag.color + "50"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border}><span style={{ fontSize: 14 }}>{ag.icon}</span><div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 700, color: ag.color, marginTop: 2 }}>{n}</div><div style={{ fontFamily: MONO, fontSize: 7, color: C.darkest, marginTop: 4 }}>details →</div></div>; })}
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center", minHeight: 24 }}>
+              {pills.slice(-5).map(a => <div key={a.id} style={{ fontFamily: MONO, fontSize: 9, padding: "4px 10px", borderRadius: 16, background: a.side === "SHORT" ? C.redBg : C.greenBg, border: `1px solid ${a.side === "SHORT" ? C.redBorder : C.greenBorder}`, color: a.side === "SHORT" ? C.red : C.green, animation: "slideIn 0.3s ease", whiteSpace: "nowrap" }}>{a.icon} {a.name} {a.side === "SHORT" ? "↓" : "↑"}</div>)}
             </div>
-            <div style={{ textAlign: "center", marginTop: 10 }}><button onClick={() => setShowAdv(!showAdv)} style={{ fontFamily: MONO, fontSize: 9, color: C.dimmer, background: "none", border: "none", cursor: "pointer" }}>{showAdv ? "▴ HIDE MARKET VIEW" : "▾ ADVANCED: MARKET VIEW"}</button></div>
           </div>
         </div>
       )}
 
-      {/* ══════ VERDICT ══════ */}
+      {/* ══════ VERDICT — big stamp + impact + sponsors ══════ */}
       {screen === "VERDICT" && S && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 32px", overflow: "auto" }}>
-          <div style={{ maxWidth: 700, width: "100%", paddingTop: 12 }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.2em", marginBottom: 14, textAlign: "center", animation: "fadeUp 0.4s ease" }}>ALL {S.claims.length} CLAIMS ANALYZED</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24, animation: "fadeUp 0.5s ease 0.15s both" }}>
-              {S.claims.map((c, i) => { const vc = c.bad ? C.red : C.green; const ac = c.action === "ALLOW" ? C.green : c.action === "REWRITE" ? C.amber : C.red; return (
-                <div key={c.id} onClick={() => setDrawer({ type: "claim", idx: i })} style={{ padding: "16px 18px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", transition: "all 0.2s", borderLeft: `3px solid ${vc}` }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = vc + "40"; e.currentTarget.style.background = C.surfaceAlt; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}><span style={{ fontFamily: MONO, fontSize: 9, color: C.darkest }}>{c.id}</span><Tag color={vc}>{c.verdict}</Tag><Tag color={ac}>{c.action}</Tag><span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 9, color: C.darkest }}>details →</span></div>
-                  <div style={{ fontSize: 13, color: C.text, marginBottom: 8, lineHeight: 1.5 }}>"{c.text}"</div>
-                  <RiskBar score={c.riskScore} small />
-                  <div style={{ fontSize: 11, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>{c.rationale}</div>
-                </div>
-              ); })}
-            </div>
-            <div style={{ textAlign: "center", animation: "fadeUp 0.5s ease 0.3s both" }}>
-              <div onClick={() => setDrawer({ type: "settlement" })} style={{ display: "inline-block", padding: "14px 36px", borderRadius: 10, cursor: "pointer", background: S.claims.some(c => c.bad) ? C.red : C.green, color: S.claims.some(c => c.bad) ? "#fff" : "#000", fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: "0.12em", transition: "transform 0.15s" }}
-                onMouseEnter={e => e.currentTarget.style.transform = "scale(1.02)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-                ■ OUTPUT {S.claims.some(c => c.bad) ? "BLOCKED" : "ALLOWED"}
+          <div style={{ maxWidth: 640, width: "100%", paddingTop: 8 }}>
+            <StepBar current="VERDICT" />
+            <div style={{ textAlign: "center", marginBottom: 20, animation: "stampIn 0.6s ease" }}>
+              <div onClick={() => setDrawer({ type: "settlement" })} style={{ display: "inline-block", padding: "20px 56px", borderRadius: 14, cursor: "pointer", background: S.claims.some(c => c.bad) ? `linear-gradient(135deg, ${C.red} 0%, #e85a6e 100%)` : `linear-gradient(135deg, ${C.green} 0%, #22c55d 100%)`, color: S.claims.some(c => c.bad) ? "#fff" : "#0a0a0a", fontFamily: MONO, fontSize: 20, fontWeight: 800, letterSpacing: "0.15em", boxShadow: S.claims.some(c => c.bad) ? `0 0 40px ${C.red}70, 0 0 80px ${C.red}30, 0 6px 24px rgba(0,0,0,0.4)` : `0 0 40px ${C.green}70, 0 0 80px ${C.green}30, 0 6px 24px rgba(0,0,0,0.4)`, transition: "all 0.2s", border: `2px solid ${S.claims.some(c => c.bad) ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)"}` }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.filter = "brightness(1.1)"; }} onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.filter = "none"; }}>
+                {S.claims.some(c => c.bad) ? "■ OUTPUT BLOCKED" : "✓ OUTPUT ALLOWED"}
               </div>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, marginTop: 6, cursor: "pointer" }} onClick={() => setDrawer({ type: "settlement" })}>Full report →</div>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, marginTop: 6 }}>Settlement by <span style={{ color: C.accent }}>Sphinx</span> · aggregates 3 verifiers</div>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.darkest, marginTop: 4, cursor: "pointer" }} onClick={() => setDrawer({ type: "settlement" })}>Full audit trail →</div>
             </div>
-            <div style={{ margin: "24px 0", padding: "16px 20px", background: C.surface, border: `1px solid ${C.accentBorder}`, borderRadius: 10, animation: "fadeUp 0.5s ease 0.5s both" }}>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: C.accent, letterSpacing: "0.12em", marginBottom: 6 }}>IMPACT</div>
-              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.8 }}>{S.impact}</div>
+            <div style={{ padding: "14px 18px", background: C.surface, border: `1px solid ${C.accentBorder}`, borderRadius: 10, marginBottom: 20, animation: "fadeUp 0.4s ease 0.2s both" }}>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7 }}>{S.impact}</div>
             </div>
-            {showAdv && prices.length > 0 && <div style={{ height: 55, borderRadius: 8, overflow: "hidden", background: C.surface, border: `1px solid ${C.border}`, marginBottom: 12, animation: "fadeIn 0.3s" }}><ResponsiveContainer><AreaChart data={prices} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}><defs><linearGradient id="vg" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={S.claims[0].bad ? C.red : C.green} stopOpacity={0.2} /><stop offset="95%" stopColor={S.claims[0].bad ? C.red : C.green} stopOpacity={0} /></linearGradient></defs><YAxis domain={[0, 1]} hide /><Area type="monotone" dataKey="p" stroke={S.claims[0].bad ? C.red : C.green} strokeWidth={2} fill="url(#vg)" dot={false} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div>}
-            <div style={{ textAlign: "center", marginBottom: 8 }}><button onClick={() => setShowAdv(!showAdv)} style={{ fontFamily: MONO, fontSize: 9, color: C.dimmer, background: "none", border: "none", cursor: "pointer" }}>{showAdv ? "▴ HIDE MARKET VIEW" : "▾ ADVANCED: MARKET VIEW"}</button></div>
-            <div style={{ marginTop: 20, textAlign: "center", animation: "fadeUp 0.5s ease 0.7s both" }}>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.15em", marginBottom: 12 }}>TRY ANOTHER SCENARIO</div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                {SL_LIST.filter(id => id !== sid).map(id => { const s = SCENARIOS[id]; return (
-                  <div key={id} onClick={() => select(id)} style={{ padding: "12px 16px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, transition: "all 0.2s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = s.color + "50"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-                    <span style={{ fontSize: 20 }}>{s.icon}</span><div style={{ textAlign: "left" }}><div style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: s.color }}>{s.label}</div><div style={{ fontSize: 10, color: C.dim }}>{s.tagline.slice(0, 50)}...</div></div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, animation: "fadeUp 0.4s ease 0.25s both" }}>
+              {S.claims.map((c, i) => {
+                const vc = c.bad ? C.red : C.green;
+                return (
+                  <div key={c.id} onClick={() => setDrawer({ type: "claim", idx: i })} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", borderLeft: `3px solid ${vc}` }}>
+                    <span style={{ fontFamily: MONO, fontSize: 16, color: vc }}>{c.bad ? "✕" : "✓"}</span>
+                    <span style={{ fontSize: 12, color: C.text, flex: 1 }}>{c.text}</span>
+                    <Tag color={vc}>{c.verdict}</Tag>
                   </div>
-                ); })}
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
+              {["Actian VectorAI", "Sphinx", "Databricks", "SafetyKit"].map(t => (
+                <span key={t} style={{ fontFamily: MONO, fontSize: 8, color: C.darkest, padding: "5px 10px", border: `1px solid ${C.border}`, borderRadius: 4, letterSpacing: "0.06em" }}>{t}</span>
+              ))}
+            </div>
+            <div style={{ textAlign: "center", animation: "fadeUp 0.4s ease 0.4s both" }}>
+              <div style={{ fontFamily: MONO, fontSize: 9, color: C.dim, letterSpacing: "0.12em", marginBottom: 10 }}>TRY ANOTHER</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {SL_LIST.filter(id => id !== sid).map(id => {
+                  const s = SCENARIOS[id];
+                  return (
+                    <div key={id} onClick={() => select(id)} style={{ padding: "10px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = s.color + "50"} onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                      <span style={{ fontSize: 18 }}>{s.icon}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: s.color }}>{s.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -431,9 +513,11 @@ export default function AxiomV7() {
 
       {/* Footer */}
       {!["LANDING", "SLIDESHOW"].includes(screen) && (
-        <div style={{ padding: "10px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 8, color: C.darkest }}>
+        <div style={{ padding: "10px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, fontFamily: MONO, fontSize: 8, color: C.darkest }}>
           <span style={{ cursor: "pointer" }} onClick={goHome} onMouseEnter={e => e.currentTarget.style.color = C.accent} onMouseLeave={e => e.currentTarget.style.color = C.darkest}>← HOME</span>
           <span style={{ cursor: "pointer" }} onClick={() => setScreen("SCENARIOS")} onMouseEnter={e => e.currentTarget.style.color = C.accent} onMouseLeave={e => e.currentTarget.style.color = C.darkest}>ALL SCENARIOS</span>
+          {screen === "VERIFYING" && <span style={{ color: C.dim }}>Click verifier cards for details</span>}
+          {screen === "VERDICT" && <span style={{ color: C.dim }}>Click claim or stamp for details</span>}
           <span>ACTIAN VECTORAI · SPHINX · DATABRICKS</span>
         </div>
       )}
